@@ -1,0 +1,33 @@
+=======================================================
+CONFIGURAÇÃO EXPERIMENTAL — YTF BASELINE
+=======================================================
+Target system    : AdaFace CVLFace IR-50
+Model source     : HuggingFace (minchul/cvlface_adaface_ir50_ms1mv2)
+Dataset/Protocol : YouTube Faces DB (Vídeo-to-Vídeo)
+Frames amostrados: 5 por vídeo
+Thresholds usados: [0.45, 0.6]
+Hardware         : NVIDIA RTX A5500
+
+Total de pares   : 5000
+Genuínos         : 2500
+Impostores       : 2500
+Pares ignorados  : 0
+
+OS               : Linux 6.16.8-1-MANJARO
+Python           : 3.10.12
+PyTorch          : 2.11.0+cu130
+
+=======================================================
+RESULTADOS
+=======================================================
+Melhor threshold : 0.3620
+Acurácia         : 76.74%
+AUC              : 0.8418
+EER              : 23.56%
+Tempo total (s)  : 186.0
+
+Média Genuínos   : 0.4785
+Média Impostores : 0.2582
+
+τ=0.45: FAR=8.76%, FRR=43.32%
+τ=0.60: FAR=0.64%, FRR=75.40%

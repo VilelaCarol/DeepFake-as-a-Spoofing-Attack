@@ -1,0 +1,48 @@
+=======================================================
+CONFIGURAÇÃO EXPERIMENTAL — LFW BASELINE
+=======================================================
+Target system    : YOLOv8-Face + AdaFace IR-50
+Dataset/Protocol : LFW (Labeled Faces in the Wild)
+Thresholds usados: 0.45 e 0.60 (conforme artigo)
+Hardware         : NVIDIA RTX A5500
+Device           : CUDA
+
+Total de pares   : 6000
+Positivos        : 3000
+Negativos        : 3000
+Pares ignorados  : 0
+
+OS               : Linux 6.16.8-1-MANJARO
+Python           : 3.10.12
+PyTorch          : 2.11.0+cu130
+Ultralytics      : 8.4.33
+
+=======================================================
+RESULTADOS
+=======================================================
+Melhor threshold : 0.2380
+Acurácia         : 95.97%
+AUC              : 0.9660
+EER              : 6.60%
+Tempo total (s)  : 91.4
+
+Acurácia por fold:
+  Fold  1         : 96.50%
+  Fold  2         : 95.33%
+  Fold  3         : 93.67%
+  Fold  4         : 96.83%
+  Fold  5         : 96.33%
+  Fold  6         : 96.33%
+  Fold  7         : 96.17%
+  Fold  8         : 97.67%
+  Fold  9         : 94.50%
+  Fold 10         : 96.33%
+  Média          : 95.97% ± 1.11%
+
+=======================================================
+FAR / FRR (THRESHOLDS DO ARTIGO)
+=======================================================
+   Threshold |    FAR (%) |    FRR (%)
+────────────-+-──────────-+-──────────
+        0.45 |       0.00 |      12.43
+        0.60 |       0.00 |      38.07

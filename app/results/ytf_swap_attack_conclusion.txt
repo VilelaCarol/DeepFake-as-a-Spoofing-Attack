@@ -1,0 +1,31 @@
+
+======================================================================
+CONCLUSÃO DO ATAQUE DEEPFAKE — YOUTUBE FACES DB
+======================================================================
+
+Foram gerados 999 ataques de face swap em vídeos utilizando
+FaceFusion (inswapper_128) sobre o dataset YouTube Faces DB.
+
+Para cada ataque:
+  - Selecionamos o frame do meio do vídeo do atacante (source)
+  - Aplicamos face swap em 5 frames do vídeo-alvo (target)
+  - Calculamos o embedding médio do vídeo deepfake resultante
+  - Comparamos com o embedding médio do vídeo original do atacante
+
+  TAXA DE SUCESSO DO ATAQUE (Attack Success Rate):
+  
+    τ = 0.45: ASR = 34.3% (343/999)  IC 95%: [31.5%, 37.3%]
+    τ = 0.60: ASR = 7.4% (74/999)  IC 95%: [5.9%, 9.2%]
+
+  Estatísticas de Similaridade:
+    Média:   0.3935
+    Mediana: 0.3939
+    Desvio:  0.1391
+
+INTERPRETAÇÃO:
+  - Este experimento testa a robustez do sistema biométrico contra
+    ataques deepfake em VÍDEO (vs imagens estáticas no LFW)
+  - A comparação com o baseline do YTF permite avaliar se os swaps
+    conseguem "enganar" o sistema de verificação facial
+
+======================================================================

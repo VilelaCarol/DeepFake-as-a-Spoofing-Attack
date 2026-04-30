@@ -1,0 +1,28 @@
+
+=======================================================
+CONCLUSÃO DO BASELINE — LFW Face Verification
+=======================================================
+
+O pipeline de verificação facial composto por YOLOv8-Face
+(detecção) + AdaFace IR-50 (embedding) apresentou desempenho
+forte em condições normais no protocolo LFW:
+
+  Acurácia : 95.97%  (threshold ótimo = 0.2380)
+  AUC      : 0.9660
+  EER      : 6.60%
+
+FAR/FRR nos thresholds definidos pelo artigo:
+
+  τ = 0.45 → FAR = 0.00%,  FRR = 12.43%
+  τ = 0.60 → FAR = 0.00%,  FRR = 38.07%
+
+O baseline servirá como referência para avaliar a degradação
+do sistema em cenários com manipulações (deepfakes). As duas
+distribuições de scores (genuínos vs. impostores) apresentam
+separação visível, o que é esperado para um modelo pré-treinado
+em larga escala como o AdaFace (WebFace4M).
+
+Os thresholds τ = 0.45 e τ = 0.60 serão usados nas próximas
+análises para quantificar o impacto das manipulações faciais
+sobre FAR e FRR do sistema.
+=======================================================

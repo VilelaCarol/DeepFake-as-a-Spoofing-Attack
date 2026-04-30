@@ -1,0 +1,37 @@
+
+======================================================================
+CONCLUSÃO DO ATAQUE DEEPFAKE — LFW
+======================================================================
+
+Foram gerados 3000 face swaps utilizando FaceFusion (inswapper_128)
+sobre o dataset LFW (Labeled Faces in the Wild).
+
+Cada swap consiste em colar o rosto da Pessoa A (source/alvo) na foto 
+da Pessoa B (target/corpo). Depois, comparamos o swap com a foto 
+original da Pessoa A usando o modelo AdaFace IR-50.
+
+Se a similaridade >= threshold, o deepfake ENGANOU o sistema biométrico.
+
+  TAXA DE SUCESSO DO ATAQUE (Attack Success Rate):
+  
+    τ = 0.45: ASR = 92.8% (2783/3000)  IC 95%: [91.8%, 93.6%]
+    τ = 0.60: ASR = 91.2% (2737/3000)  IC 95%: [90.2%, 92.2%]
+
+  Estatísticas de Similaridade:
+    Média:   0.6990
+    Mediana: 0.7541
+    Desvio:  0.1975
+    Mín:     -0.1186
+    Máx:     0.8736
+    Q1 (25%): 0.7063
+    Q3 (75%): 0.7883
+
+INTERPRETAÇÃO:
+  - ASR alto = O sistema biométrico é VULNERÁVEL a deepfakes
+  - ASR baixo = O sistema consegue BARRAR a maioria das manipulações
+  
+  Comparando com o baseline (fotos originais sem manipulação):
+  - Se os swaps caem na mesma região que pares genuínos → sistema em risco
+  - Se os swaps ficam abaixo do threshold → sistema robusto nesse cenário
+
+======================================================================
