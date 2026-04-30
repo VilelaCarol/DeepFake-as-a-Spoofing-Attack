@@ -10,7 +10,7 @@ yolo8face_adaface/
 # ========================
 # Resultados (cada um gera os seus)
 # ========================
-app/results/
+cache/
 
 # ========================
 # Python

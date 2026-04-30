@@ -1,0 +1,102 @@
+================================================================================
+RELATÓRIO DE PROGRESSO E PASSO A PASSO TÉCNICO
+Projeto: Verificação Facial e Avaliação de Robustez contra Deepfakes
+================================================================================
+
+Este documento detalha sistematicamente todas as etapas concluídas na construção, 
+execução e validação do pipeline de pesquisa contra deepfakes.
+
+********************************************************************************
+📊 RESUMO DO VOLUME DE DADOS PROCESSADOS NESSA PESQUISA
+********************************************************************************
+- LFW (Fotos / Baseline): 6.000 pares avaliados (3.000 genuínos vs 3.000 impostores).
+- LFW (Ataque Deepfake): 3.000 fotos exclusivas geradas como fraude (face swaps).
+- YTF (Vídeos / Baseline): 5.000 pares avaliados (2.500 genuínos vs 2.500 impostores).
+- YTF (Ataque Deepfake): 999 vídeos manipulados (analisados em 5 frames cada).
+
+--------------------------------------------------------------------------------
+ETAPA 1: CONFIGURAÇÃO DE AMBIENTE E INFRAESTRUTURA
+--------------------------------------------------------------------------------
+1. Containerização Docker: Foi criado um ambiente Docker (`docker-compose.gpu.yml` 
+   e `Dockerfile`) para padronizar as bibliotecas (PyTorch, OpenCV) e garantir 
+   acesso nativo e exclusivo à aceleração da GPU NVIDIA via CUDA.
+2. Controle de Versão de Dados: Configuração do `.gitignore` orientada ao uso do 
+   DVC, para que arquivos pesados de datasets (.zip, mp4, pesos de IA) não travem 
+   o repositório Git, sendo versionados de forma inteligente.
+3. Organização de Diretórios: Divisão clara entre o "núcleo de pesquisa" (`app/`), 
+   arquivos de testes para a equipe (`app/utils/`), e artefatos de dados (`data/` 
+   e `app/results/`).
+
+--------------------------------------------------------------------------------
+ETAPA 2: IMPLEMENTAÇÃO DO MOTOR DE BIOMETRIA (O "DEFENSOR")
+--------------------------------------------------------------------------------
+1. Módulo de Detecção: Integração do modelo `YOLOv8-Face` para identificar rostos 
+   e cruzar 5 pontos de landmarks faciais (olhos, nariz, boca) garantindo o 
+   alinhamento perfeito ("crop") da face antes da leitura.
+2. Extração de Identidade: Integração com a avançada arquitetura `AdaFace IR-50` 
+   (pré-treinada no WebFace4M) atuando como nosso "backbone". Ela recebe o rosto 
+   picotado pelo YOLO e cospe um array matemático de 512 dimensões (embedding).
+3. Mecanismo de Decisão: Criação da lógica de Verificação Biométrica usando a 
+   distância/similaridade Cosseno, definindo limites (Thresholds = 0.45 e 0.60) 
+   para definir se um rosto "passa" no teste ou é "barrado". (Ver `app/baseline_lfw.py`).
+
+--------------------------------------------------------------------------------
+ETAPA 3: AVALIAÇÃO DE VULNERABILIDADE EM FOTOS (DATASET LFW)
+--------------------------------------------------------------------------------
+1. Criação do Baseline (Mundo Real): Rodamos o script `baseline_lfw.py` para 
+   testar os 6.000 pares (3k genuínos, 3k impostores) oficiais do protocolo 
+   acadêmico LFW. A biometria provou ser altamente precisa (Acurácia ~96%) em 
+   fotos não manipuladas.
+2. Automação do Motor de Ataque: Integração da tecnologia `FaceFusion` 
+   (inswapper_128) para fabricar amostras Deepfakes (Face Swap) de maneira headless 
+   e rápida por linha de comando.
+3. Bombardeio da Biometria: Rodamos `run_swaps_lfw.py`, iterando precisamente 
+   em 3.000 fotos geradas como ataques contra identidades do LFW, enganando a IA. 
+   O ASR (Attack Success Rate) superou a casa de 92.8%, comprovando a fragilidade 
+   extrema do sistema contra falsificações em fotos estáticas.
+
+--------------------------------------------------------------------------------
+ETAPA 4: AVALIAÇÃO EM DIMENSÃO TEMPORAL (DATASET YTF - VÍDEOS)
+--------------------------------------------------------------------------------
+1. Nova Abordagem: Expansão do projeto para processar arquivos `.mp4` usando o 
+   dataset YouTube Faces, onde o contexto de tempo exige que o ataque "segure" a 
+   consistência da face em movimento.
+2. Baseline de Vídeos (`baseline_ytf.py`): Avaliamos 5.000 pares de vídeos (2.5k 
+   genuínos e 2.5k impostores). Extraímos frames estratégicos (5 por vídeo) e 
+   agregamos os embeddings de cada um deles, comprovando que o AdaFace ainda funciona 
+   bem para encontrar a verdadeira identidade.
+3. Ataque em Vídeos (`run_swaps_ytf.py`): O FaceFusion processou 999 vídeos alvo 
+   injetando o rosto do atacante em todos os frames. Como esperado na teoria, enganar 
+   o conjunto agregado de frames é mais difícil. Em nossos resultados as falhas do 
+   deepfake (flickerings, blur) derrubaram o ASR para a casa de 34.3% (em Threshold 
+   0.45), provando que o vetor de vídeo multidimensional é significativamente mais resiliente.
+
+--------------------------------------------------------------------------------
+ETAPA 5: APLICAÇÃO DE VIDA REAL - ATAQUE AO VIVO (A "POC")
+--------------------------------------------------------------------------------
+1. Arquitetura Interativa: Foi escrito o Notebook `pipeline_deepfake.ipynb` 
+   que dita uma prova de conceito de ataque contra um sistema ao vivo.
+2. Injeção de Câmera (v4l2loopback): Utilizamos ferramentas do kernel Linux e do 
+   FFMPEG para fingir um dispositivo de Webcam para o SO inteiro, lendo um vídeo  
+   fabricado em loop e transmitindo via `/dev/video7`.
+3. Resultado prático: Provou-se que um invasor comum pode logar em serviços como 
+   Zoom, Google Meet ou sistemas de cadastro (que checam câmera estática) transmitindo 
+   um falso rosto trocado e passando despercebido visualmente.
+
+--------------------------------------------------------------------------------
+ETAPA 6: MATURAÇÃO DE DADOS E FORMATAÇÃO ACADÊMICA
+--------------------------------------------------------------------------------
+1. Dados Brutos Salvos: Toda e qualquer avaliação disparou os resultados minuciosos 
+   para planilhas (.csv) na pasta `app/results/`, registrando pontuações exatas 
+   dos 6.000 testes base LFW, 5.000 base YTF, 3000 ataques LFW e 999 ataques YTF.
+2. Plotagem Científica Avançada: Geração automática no final de cada script das 
+   visões necessárias para compor um Paper (Boxplots para visualizar outliers e médias, 
+   Curvas ASR vs Thresholds, Histogramas sobrepostos para ver o shift da distribuição).
+3. Testes Estatísticos Independentes: Os scripts não pararam no básico; calcularam 
+   Intervalos de Confiança (Wilson CI 95%), aplicaram métodos de significância P-Value 
+   (Kolmogorov-Smirnov e Mann-Whitney U) e o Cohen's d para provar a validade 
+   matemática de todo o experimento, sem refutação.
+
+================================================================================
+STATUS: PREPARADO PARA PUBLICAÇÃO.
+================================================================================

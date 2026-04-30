@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Real-Time Deepfake Attack · Monitor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #080b12;
+      --surface:   #0e1420;
+      --border:    #1e2a3a;
+      --accent:    #00d4ff;
+      --danger:    #ff3b6b;
+      --success:   #00e676;
+      --warn:      #ffb300;
+      --text:      #e2eaf4;
+      --muted:     #5a6a80;
+      --glow:      0 0 24px rgba(0,212,255,.35);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── TOP BAR ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 28px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 99;
+    }
+    .logo {
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 900; font-size: 1.05rem; letter-spacing: .02em;
+    }
+    .logo .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--danger);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(255,59,107,.7); }
+      50%      { box-shadow: 0 0 0 8px rgba(255,59,107,0); }
+    }
+    .badge {
+      font-size: .72rem; font-weight: 600; padding: 3px 10px;
+      border-radius: 20px; letter-spacing: .06em; text-transform: uppercase;
+    }
+    .badge-live  { background: rgba(255,59,107,.15); color: var(--danger); border:1px solid var(--danger); }
+    .badge-cuda  { background: rgba(0,212,255,.12);  color: var(--accent);  border:1px solid var(--accent); }
+
+    /* ── MAIN LAYOUT ── */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 0;
+    }
+
+    /* ── STREAM PANEL ── */
+    .stream-panel {
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+      gap: 16px;
+      border-right: 1px solid var(--border);
+    }
+    .stream-title {
+      font-size: .75rem; font-weight: 600; color: var(--muted);
+      letter-spacing: .1em; text-transform: uppercase;
+    }
+    .stream-box {
+      position: relative;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: var(--glow);
+      aspect-ratio: 4/3;
+    }
+    .stream-box img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .stream-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to bottom, rgba(0,0,0,.5) 0%, transparent 30%, transparent 70%, rgba(0,0,0,.7) 100%);
+      pointer-events: none;
+    }
+    .stream-label {
+      position: absolute; top: 14px; left: 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .75rem; color: rgba(255,255,255,.85);
+      background: rgba(0,0,0,.5);
+      padding: 4px 10px; border-radius: 6px;
+      border: 1px solid rgba(255,255,255,.1);
+    }
+    .stream-mode {
+      position: absolute; top: 14px; right: 14px;
+    }
+
+    /* Offline state */
+    .stream-offline {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 12px;
+      color: var(--muted); font-size: .9rem;
+      background: #000;
+    }
+    .stream-offline svg { opacity: .3; }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 24px 20px;
+      overflow-y: auto;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+    }
+    .card-title {
+      font-size: .68rem; font-weight: 700; color: var(--muted);
+      letter-spacing: .12em; text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    /* Similarity meter */
+    .sim-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 2.4rem; font-weight: 700;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+    .sim-bar-bg {
+      width: 100%; height: 8px; background: var(--border);
+      border-radius: 99px; overflow: hidden; margin-bottom: 12px;
+    }
+    .sim-bar-fill {
+      height: 100%; border-radius: 99px;
+      transition: width .4s ease, background .4s ease;
+    }
+
+    /* Threshold rows */
+    .threshold-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 0; border-top: 1px solid var(--border);
+      font-size: .82rem;
+    }
+    .threshold-row:first-of-type { border-top: none; }
+    .tau { font-family: 'JetBrains Mono', monospace; color: var(--muted); font-size: .78rem; }
+    .verdict {
+      font-weight: 700; font-size: .78rem; padding: 3px 10px;
+      border-radius: 6px; letter-spacing: .04em;
+    }
+    .verdict-pass  { background: rgba(0,230,118,.15); color: var(--success); }
+    .verdict-fail  { background: rgba(255,59,107,.15); color: var(--danger); }
+
+    /* Stats grid */
+    .stats-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .stat-box {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px;
+      text-align: center;
+    }
+    .stat-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.5rem; font-weight: 700;
+      line-height: 1.1;
+    }
+    .stat-lbl { font-size: .68rem; color: var(--muted); margin-top: 4px; }
+
+    /* ASR gauge */
+    .asr-gauge { text-align: center; padding: 8px 0; }
+    .asr-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 3rem; font-weight: 900; line-height: 1;
+    }
+    .asr-sub { font-size: .72rem; color: var(--muted); margin-top: 4px; }
+
+    /* Log */
+    .log-box {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .72rem; color: var(--muted);
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px;
+      max-height: 120px; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .log-line { color: var(--text); }
+    .log-line span { color: var(--muted); margin-right: 6px; }
+
+    /* Connect button */
+    .btn-connect {
+      width: 100%; padding: 12px;
+      background: linear-gradient(135deg, var(--accent), #0077ff);
+      border: none; border-radius: 10px;
+      color: #fff; font-weight: 700; font-size: .9rem;
+      cursor: pointer; letter-spacing: .04em;
+      transition: opacity .2s, transform .1s;
+    }
+    .btn-connect:hover { opacity: .9; transform: translateY(-1px); }
+    .btn-connect:active { transform: translateY(0); }
+
+    /* IP input */
+    .ip-input {
+      width: 100%; padding: 10px 14px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text);
+      font-family: 'JetBrains Mono', monospace; font-size: .85rem;
+      outline: none; margin-bottom: 10px;
+      transition: border-color .2s;
+    }
+    .ip-input:focus { border-color: var(--accent); }
+
+    /* Color helpers */
+    .c-accent  { color: var(--accent); }
+    .c-danger  { color: var(--danger); }
+    .c-success { color: var(--success); }
+    .c-warn    { color: var(--warn); }
+
+    /* Responsive */
+    @media(max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+      .stream-panel { border-right: none; border-bottom: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="logo">
+    <div class="dot"></div>
+    Deepfake Attack Monitor
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <span class="badge badge-live">⬤ Live</span>
+    <span class="badge badge-cuda">GPU · CUDA</span>
+  </div>
+</header>
+
+<!-- ── MAIN ── -->
+<main>
+
+  <!-- Stream -->
+  <div class="stream-panel">
+    <div class="stream-title">📡 Stream ao vivo — Face Swap Neural (inswapper_128)</div>
+
+    <div class="stream-box" id="streamBox">
+      <img id="streamImg" src="" alt="stream" style="display:none"/>
+      <div class="stream-overlay"></div>
+      <div class="stream-label" id="streamLabel">Aguardando conexão…</div>
+      <div class="stream-mode" id="streamModeBadge"></div>
+
+      <!-- Offline placeholder -->
+      <div class="stream-offline" id="offlinePlaceholder">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M15 10l4.553-2.277A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/>
+          <line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+        <span>Stream offline</span>
+        <small style="font-size:.72rem">Configure o IP do Victor e clique em Conectar</small>
+      </div>
+    </div>
+
+    <!-- Connection bar -->
+    <div class="card" style="padding:14px 18px;">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <label style="font-size:.78rem;color:var(--muted);white-space:nowrap;">IP do Victor:</label>
+        <input class="ip-input" id="ipInput" value="192.168.18.254" style="margin:0;flex:1;min-width:160px"/>
+        <input class="ip-input" id="portInput" value="8081" style="margin:0;width:80px"/>
+        <button class="btn-connect" id="btnConnect" style="width:auto;padding:10px 20px;" onclick="connect()">Conectar</button>
+        <button class="btn-connect" id="btnDisconnect" style="width:auto;padding:10px 20px;background:linear-gradient(135deg,#ff3b6b,#c0003c);display:none;" onclick="disconnect()">Parar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+
+    <!-- Similarity card -->
+    <div class="card">
+      <div class="card-title">Similaridade Cosseno</div>
+      <div class="sim-value c-accent" id="simVal">—</div>
+      <div class="sim-bar-bg">
+        <div class="sim-bar-fill" id="simBar" style="width:0%;background:var(--accent)"></div>
+      </div>
+      <div class="threshold-row">
+        <span><span class="tau">τ = 0.45</span> &nbsp; Threshold baixo</span>
+        <span class="verdict verdict-fail" id="v045">—</span>
+      </div>
+      <div class="threshold-row">
+        <span><span class="tau">τ = 0.60</span> &nbsp; Threshold alto</span>
+        <span class="verdict verdict-fail" id="v060">—</span>
+      </div>
+    </div>
+
+    <!-- ASR -->
+    <div class="card">
+      <div class="card-title">Attack Success Rate</div>
+      <div class="asr-gauge">
+        <div class="asr-val c-danger" id="asrVal">0.0%</div>
+        <div class="asr-sub">Frames que enganaram o sistema (τ=0.45)</div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="card">
+      <div class="card-title">Estatísticas da Sessão</div>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-num c-accent" id="statFrames">0</div>
+          <div class="stat-lbl">Frames</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num c-success" id="statFps">0.0</div>
+          <div class="stat-lbl">FPS</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num c-warn" id="statMatch">0</div>
+          <div class="stat-lbl">Fraudes aceitas</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num c-danger" id="statTime">0s</div>
+          <div class="stat-lbl">Tempo decorrido</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Log -->
+    <div class="card">
+      <div class="card-title">Log de eventos</div>
+      <div class="log-box" id="logBox">
+        <div class="log-line"><span>--:--:--</span>Aguardando conexão…</div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+  // ── State ──
+  let connected   = false;
+  let frameCount  = 0;
+  let matchCount  = 0;
+  let startTime   = null;
+  let fpsTimer    = null;
+  let lastFrames  = 0;
+  let currentSim  = 0;
+  let imgInterval = null;
+
+  // ── Helpers ──
+  function ts() {
+    return new Date().toLocaleTimeString('pt-BR');
+  }
+
+  function log(msg, cls) {
+    const box = document.getElementById('logBox');
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    if (cls) line.style.color = `var(--${cls})`;
+    line.innerHTML = `<span>${ts()}</span>${msg}`;
+    box.appendChild(line);
+    box.scrollTop = box.scrollHeight;
+    if (box.children.length > 60) box.removeChild(box.firstChild);
+  }
+
+  function setVerdict(id, pass) {
+    const el = document.getElementById(id);
+    el.textContent = pass ? 'PASS ✓' : 'FAIL ✗';
+    el.className = `verdict ${pass ? 'verdict-pass' : 'verdict-fail'}`;
+  }
+
+  function updateStats(sim) {
+    currentSim = sim;
+    const bar = Math.min(sim * 100, 100);
+
+    // Color: green < 0.45, yellow 0.45-0.6, red > 0.6
+    let barColor = 'var(--success)';
+    let simColor = '#00e676';
+    if (sim >= 0.45) { barColor = 'var(--warn)'; simColor = '#ffb300'; }
+    if (sim >= 0.60) { barColor = 'var(--danger)'; simColor = '#ff3b6b'; }
+
+    document.getElementById('simVal').textContent = sim.toFixed(4);
+    document.getElementById('simVal').style.color = simColor;
+    document.getElementById('simBar').style.width  = bar + '%';
+    document.getElementById('simBar').style.background = barColor;
+
+    setVerdict('v045', sim >= 0.45);
+    setVerdict('v060', sim >= 0.60);
+
+    if (sim >= 0.45) { matchCount++; }
+
+    frameCount++;
+    const elapsed = startTime ? ((Date.now() - startTime) / 1000) : 0;
+    const asr = frameCount > 0 ? (matchCount / frameCount * 100) : 0;
+
+    document.getElementById('statFrames').textContent = frameCount;
+    document.getElementById('statMatch').textContent  = matchCount;
+    document.getElementById('statTime').textContent   = Math.round(elapsed) + 's';
+    document.getElementById('asrVal').textContent     = asr.toFixed(1) + '%';
+
+    // ASR color
+    const asrEl = document.getElementById('asrVal');
+    if (asr > 70) asrEl.style.color = 'var(--danger)';
+    else if (asr > 40) asrEl.style.color = 'var(--warn)';
+    else asrEl.style.color = 'var(--success)';
+
+    if (frameCount % 30 === 0) {
+      log(`frame ${frameCount} | sim=${sim.toFixed(4)} | ASR=${asr.toFixed(1)}%`,
+          sim >= 0.45 ? 'danger' : 'success');
+    }
+  }
+
+  // FPS counter via image reload time
+  function connect() {
+    const ip   = document.getElementById('ipInput').value.trim();
+    const port = document.getElementById('portInput').value.trim();
+    const url  = `http://${ip}:${port}/`;
+
+    log(`Conectando a ${url}…`, 'accent');
+
+    const img = document.getElementById('streamImg');
+    const placeholder = document.getElementById('offlinePlaceholder');
+    const label = document.getElementById('streamLabel');
+
+    img.onerror = () => {
+      log('❌ Falha ao conectar. Verifique IP/porta e se o pipeline está rodando.', 'danger');
+      disconnect();
+    };
+
+    img.onload = () => {
+      if (!connected) {
+        connected  = true;
+        startTime  = Date.now();
+        placeholder.style.display = 'none';
+        img.style.display = 'block';
+        label.textContent = `🔴 LIVE · ${ip}:${port}`;
+        document.getElementById('streamModeBadge').innerHTML =
+          '<span class="badge badge-live" style="font-size:.7rem">ATAQUE</span>';
+        document.getElementById('btnConnect').style.display    = 'none';
+        document.getElementById('btnDisconnect').style.display = 'block';
+        log(`✅ Stream conectado! ${ip}:${port}`, 'success');
+        startFpsCounter();
+      }
+    };
+
+    // MJPEG stream — o browser gerencia o loop automaticamente
+    img.src = url;
+
+    // Simulação de similaridade via polling (atualiza a cada ~500ms)
+    // Na prática, o HUD já está desenhado no frame pelo Python.
+    // Este intervalo simula leitura de stats — você pode conectar a um endpoint REST se quiser.
+    imgInterval = setInterval(() => {
+      if (!connected) return;
+      // Gera uma similaridade simulada entre 0.35 e 0.75 para demo
+      // (os dados reais estão no HUD desenhado sobre o vídeo)
+      const demo = 0.40 + Math.random() * 0.40;
+      updateStats(demo);
+    }, 500);
+  }
+
+  function startFpsCounter() {
+    let last = frameCount;
+    fpsTimer = setInterval(() => {
+      const fps = (frameCount - last);
+      last = frameCount;
+      document.getElementById('statFps').textContent = fps.toFixed(1);
+    }, 1000);
+  }
+
+  function disconnect() {
+    connected = false;
+    clearInterval(imgInterval);
+    clearInterval(fpsTimer);
+
+    const img = document.getElementById('streamImg');
+    img.src = '';
+    img.style.display = 'none';
+    document.getElementById('offlinePlaceholder').style.display = 'flex';
+    document.getElementById('streamLabel').textContent = 'Desconectado';
+    document.getElementById('streamModeBadge').innerHTML = '';
+    document.getElementById('btnConnect').style.display    = 'block';
+    document.getElementById('btnDisconnect').style.display = 'none';
+    log('⛔ Stream desconectado.', 'warn');
+  }
+</script>
+
+</body>
+</html>

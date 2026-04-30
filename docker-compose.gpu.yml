@@ -7,6 +7,8 @@ services:
 
     volumes:
       - .:/app
+      - ./cache/hf:/root/.cache/huggingface
+      - ./cache/cvlface:/root/.cvlface_cache
 
     deploy:
       resources:
