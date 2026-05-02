@@ -288,7 +288,7 @@ class MJPEGServer:
                     return
                 self.send_response(200)
                 self.send_header("Content-Type",
-                                 "multipart/x-mixed-replace; boundary=--frame")
+                                 "multipart/x-mixed-replace; boundary=frame")
                 self.end_headers()
                 try:
                     while True:
@@ -453,8 +453,12 @@ def run_pipeline(source, source_image: str, mode: str, output_url: str = None):
         fps  = 30
 
     else:
-        # ── Device local: usa OpenCV V4L2 ────────────────────────────
-        cap = cv2.VideoCapture(int(source), cv2.CAP_V4L2)
+        # ── Device local ou Arquivo de Vídeo ──────────────────────────
+        if isinstance(source, int):
+            cap = cv2.VideoCapture(source, cv2.CAP_V4L2)
+        else:
+            cap = cv2.VideoCapture(source)
+            
         cap.set(cv2.CAP_PROP_FRAME_WIDTH,  FRAME_W)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_H)
         cap.set(cv2.CAP_PROP_FPS, 30)
@@ -462,8 +466,8 @@ def run_pipeline(source, source_image: str, mode: str, output_url: str = None):
         proc = None
         if not cap.isOpened():
             raise RuntimeError(
-                f"❌ Não foi possível abrir /dev/video{source}.\n"
-                "   Verifique se o OBS Virtual Camera está ativo."
+                f"❌ Não foi possível abrir a fonte de vídeo: {source}.\n"
+                "   Verifique se o OBS Virtual Camera está ativo ou se o arquivo existe."
             )
         FRAME_W = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         FRAME_H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))

@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Deepfake Attack Monitor · Client</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#080b12;--surface:#0e1420;--border:#1e2a3a;
+      --accent:#00d4ff;--danger:#ff3b6b;--success:#00e676;--warn:#ffb300;
+      --text:#e2eaf4;--muted:#5a6a80;
+    }
+    body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;display:flex;flex-direction:column;}
+    header{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:99;}
+    .logo{display:flex;align-items:center;gap:10px;font-weight:900;font-size:1.05rem;}
+    .dot{width:10px;height:10px;border-radius:50%;background:var(--danger);animation:pulse 1.2s ease-in-out infinite;}
+    @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,59,107,.7)}50%{box-shadow:0 0 0 8px rgba(255,59,107,0)}}
+    .badge{font-size:.72rem;font-weight:600;padding:3px 10px;border-radius:20px;letter-spacing:.06em;text-transform:uppercase;}
+    .badge-live{background:rgba(255,59,107,.15);color:var(--danger);border:1px solid var(--danger);}
+    .badge-gpu{background:rgba(0,212,255,.12);color:var(--accent);border:1px solid var(--accent);}
+    main{flex:1;display:grid;grid-template-columns:1fr 340px;gap:0;}
+
+    /* Stream panel */
+    .stream-panel{display:flex;flex-direction:column;padding:20px;gap:14px;border-right:1px solid var(--border);}
+    .panel-title{font-size:.72rem;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
+    .video-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    .vbox{position:relative;background:#000;border-radius:10px;overflow:hidden;border:1px solid var(--border);aspect-ratio:4/3;}
+    .vbox video,.vbox canvas,.vbox img{width:100%;height:100%;object-fit:cover;display:block;}
+    .vbox-label{position:absolute;top:8px;left:8px;font-family:'JetBrains Mono',monospace;font-size:.7rem;color:rgba(255,255,255,.85);background:rgba(0,0,0,.55);padding:3px 8px;border-radius:5px;}
+    .vbox-badge{position:absolute;top:8px;right:8px;}
+    .offline-msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--muted);font-size:.82rem;}
+
+    /* Config bar */
+    .config-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;}
+    .inp{background:var(--bg);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.82rem;padding:8px 12px;outline:none;transition:border-color .2s;}
+    .inp:focus{border-color:var(--accent);}
+    .inp-sm{width:80px;}
+    .btn{padding:9px 18px;border:none;border-radius:8px;font-weight:700;font-size:.85rem;cursor:pointer;letter-spacing:.03em;transition:opacity .2s,transform .1s;}
+    .btn:hover{opacity:.88;transform:translateY(-1px);}
+    .btn:active{transform:translateY(0);}
+    .btn-connect{background:linear-gradient(135deg,var(--accent),#0077ff);color:#fff;}
+    .btn-stop{background:linear-gradient(135deg,var(--danger),#c0003c);color:#fff;display:none;}
+    .btn-mode{background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;}
+    .lbl{font-size:.78rem;color:var(--muted);white-space:nowrap;}
+
+    /* Camera select */
+    .sel{background:var(--bg);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:.82rem;padding:8px 10px;outline:none;}
+
+    /* Sidebar */
+    .sidebar{display:flex;flex-direction:column;gap:14px;padding:20px 18px;overflow-y:auto;}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;}
+    .card-title{font-size:.68rem;font-weight:700;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-bottom:12px;}
+    .sim-value{font-family:'JetBrains Mono',monospace;font-size:2.4rem;font-weight:700;line-height:1;margin-bottom:8px;}
+    .bar-bg{width:100%;height:8px;background:var(--border);border-radius:99px;overflow:hidden;margin-bottom:10px;}
+    .bar-fill{height:100%;border-radius:99px;transition:width .35s ease,background .35s ease;}
+    .thresh-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-top:1px solid var(--border);font-size:.82rem;}
+    .tau{font-family:'JetBrains Mono',monospace;color:var(--muted);font-size:.78rem;}
+    .verdict{font-weight:700;font-size:.78rem;padding:3px 10px;border-radius:6px;}
+    .vp{background:rgba(0,230,118,.15);color:var(--success);}
+    .vf{background:rgba(255,59,107,.15);color:var(--danger);}
+    .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+    .stat-box{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:11px;text-align:center;}
+    .stat-num{font-family:'JetBrains Mono',monospace;font-size:1.4rem;font-weight:700;line-height:1.1;}
+    .stat-lbl{font-size:.67rem;color:var(--muted);margin-top:3px;}
+    .asr-val{font-family:'JetBrains Mono',monospace;font-size:2.8rem;font-weight:900;line-height:1;text-align:center;}
+    .asr-sub{font-size:.7rem;color:var(--muted);text-align:center;margin-top:4px;}
+    .log-box{font-family:'JetBrains Mono',monospace;font-size:.7rem;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:9px;max-height:130px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;}
+    .log-line span{color:var(--muted);margin-right:6px;}
+    .ping-chip{font-family:'JetBrains Mono',monospace;font-size:.72rem;padding:3px 9px;border-radius:5px;background:rgba(0,212,255,.1);color:var(--accent);border:1px solid rgba(0,212,255,.25);}
+    @media(max-width:900px){main{grid-template-columns:1fr}.video-row{grid-template-columns:1fr}.stream-panel{border-right:none;border-bottom:1px solid var(--border)}}
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="dot"></div> Deepfake Attack Monitor</div>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <span id="pingChip" class="ping-chip" style="display:none">— ms</span>
+    <span class="badge badge-live">⬤ Live</span>
+    <span class="badge badge-gpu">GPU · RTX A5500</span>
+  </div>
+</header>
+
+<main>
+  <div class="stream-panel">
+    <div class="panel-title">📷 Webcam local &nbsp;→&nbsp; 🖥 Servidor GPU (192.168.18.254) &nbsp;→&nbsp; 🎭 Face Swap</div>
+
+    <div class="video-row">
+      <!-- Webcam original -->
+      <div class="vbox">
+        <video id="localVideo" autoplay muted playsinline></video>
+        <div class="vbox-label">📷 Webcam original</div>
+      </div>
+      <!-- Frame processado pelo servidor -->
+      <div class="vbox">
+        <img id="processedImg" src="" alt="" style="display:none"/>
+        <div class="offline-msg" id="procOffline">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          <span>Aguardando servidor…</span>
+        </div>
+        <div class="vbox-label">🎭 Face Swap (GPU)</div>
+        <div class="vbox-badge" id="modeBadge"></div>
+      </div>
+    </div>
+
+    <!-- Canvas oculto para captura de frames -->
+    <canvas id="captureCanvas" style="display:none"></canvas>
+
+    <!-- Barra de configuração -->
+    <div class="config-bar">
+      <span class="lbl">Servidor:</span>
+      <input class="inp" id="serverIp" value="192.168.18.254" style="width:160px"/>
+      <input class="inp inp-sm" id="serverPort" value="8765"/>
+      <span class="lbl">Câmera:</span>
+      <select class="sel" id="cameraSelect"><option value="">Padrão</option></select>
+      <span class="lbl">FPS envio:</span>
+      <select class="sel" id="fpsSelect" style="width:70px">
+        <option value="10">10</option>
+        <option value="15">15</option>
+        <option value="20" selected>20</option>
+        <option value="30">30</option>
+      </select>
+      <button class="btn btn-connect" id="btnConnect" onclick="connect()">Conectar</button>
+      <button class="btn btn-stop" id="btnStop" onclick="disconnect()">Parar</button>
+      <button class="btn btn-mode" id="btnMode" onclick="toggleMode()" style="display:none">🔄 ATAQUE</button>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+
+    <!-- Similaridade -->
+    <div class="card">
+      <div class="card-title">Similaridade Cosseno</div>
+      <div class="sim-value" id="simVal" style="color:var(--accent)">—</div>
+      <div class="bar-bg"><div class="bar-fill" id="simBar" style="width:0%;background:var(--accent)"></div></div>
+      <div class="thresh-row">
+        <span><span class="tau">τ = 0.45</span> &nbsp;Threshold baixo</span>
+        <span class="verdict vf" id="v045">—</span>
+      </div>
+      <div class="thresh-row">
+        <span><span class="tau">τ = 0.60</span> &nbsp;Threshold alto</span>
+        <span class="verdict vf" id="v060">—</span>
+      </div>
+    </div>
+
+    <!-- ASR -->
+    <div class="card">
+      <div class="card-title">Attack Success Rate</div>
+      <div class="asr-val" id="asrVal" style="color:var(--success)">0.0%</div>
+      <div class="asr-sub">Frames que enganaram o sistema (τ = 0.45)</div>
+    </div>
+
+    <!-- Estatísticas -->
+    <div class="card">
+      <div class="card-title">Estatísticas da Sessão</div>
+      <div class="stats-grid">
+        <div class="stat-box"><div class="stat-num" id="statFrames" style="color:var(--accent)">0</div><div class="stat-lbl">Frames</div></div>
+        <div class="stat-box"><div class="stat-num" id="statFps" style="color:var(--success)">0.0</div><div class="stat-lbl">FPS retorno</div></div>
+        <div class="stat-box"><div class="stat-num" id="statMatch" style="color:var(--warn)">0</div><div class="stat-lbl">Fraudes aceitas</div></div>
+        <div class="stat-box"><div class="stat-num" id="statLatency" style="color:var(--accent)">—</div><div class="stat-lbl">Latência (ms)</div></div>
+        <div class="stat-box"><div class="stat-num" id="statTime" style="color:var(--danger)">0s</div><div class="stat-lbl">Tempo</div></div>
+        <div class="stat-box"><div class="stat-num" id="statFace" style="color:var(--muted)">—</div><div class="stat-lbl">Face</div></div>
+      </div>
+    </div>
+
+    <!-- Log -->
+    <div class="card">
+      <div class="card-title">Log de eventos</div>
+      <div class="log-box" id="logBox">
+        <div class="log-line"><span>--:--:--</span>Aguardando conexão…</div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+  // ── State ──
+  let ws = null;
+  let localStream = null;
+  let sendInterval = null;
+  let connected = false;
+  let mode = "ATAQUE";
+  let frameCount = 0;
+  let matchCount = 0;
+  let startTime = null;
+  let fpsFrames = 0;
+  let fpsTime = Date.now();
+  let fpsDisplay = 0;
+
+  // ── Utilidades ──
+  function ts() { return new Date().toLocaleTimeString('pt-BR'); }
+
+  function log(msg, color) {
+    const box = document.getElementById('logBox');
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    if (color) line.style.color = `var(--${color})`;
+    line.innerHTML = `<span>${ts()}</span>${msg}`;
+    box.appendChild(line);
+    box.scrollTop = box.scrollHeight;
+    if (box.children.length > 80) box.removeChild(box.firstChild);
+  }
+
+  // ── Enumera câmeras disponíveis ──
+  async function enumCameras() {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const sel = document.getElementById('cameraSelect');
+      sel.innerHTML = '';
+      let idx = 0;
+      devices.filter(d => d.kind === 'videoinput').forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.deviceId;
+        opt.textContent = d.label || `Câmera ${++idx}`;
+        sel.appendChild(opt);
+      });
+      log(`${sel.options.length} câmera(s) encontrada(s)`, 'accent');
+    } catch(e) {
+      log('Não foi possível enumerar câmeras', 'warn');
+    }
+  }
+
+  // ── Inicia webcam ──
+  async function startCamera() {
+    const deviceId = document.getElementById('cameraSelect').value;
+    const constraints = {
+      video: deviceId
+        ? { deviceId: { exact: deviceId }, width: 640, height: 480 }
+        : { width: 640, height: 480 },
+      audio: false
+    };
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    const vid = document.getElementById('localVideo');
+    vid.srcObject = localStream;
+    await vid.play();
+    log('✅ Webcam iniciada', 'success');
+    await enumCameras();
+  }
+
+  // ── Conecta ao servidor WebSocket ──
+  async function connect() {
+    const ip   = document.getElementById('serverIp').value.trim();
+    const port = document.getElementById('serverPort').value.trim();
+    const url  = `ws://${ip}:${port}`;
+
+    log(`Iniciando câmera…`, 'accent');
+    try {
+      await startCamera();
+    } catch(e) {
+      log(`❌ Câmera: ${e.message}`, 'danger');
+      return;
+    }
+
+    log(`Conectando a ${url}…`, 'accent');
+    ws = new WebSocket(url);
+    ws.binaryType = 'arraybuffer';
+
+    ws.onopen = () => {
+      connected = true;
+      startTime = Date.now();
+      log('✅ WebSocket conectado!', 'success');
+      document.getElementById('btnConnect').style.display = 'none';
+      document.getElementById('btnStop').style.display    = 'block';
+      document.getElementById('btnMode').style.display    = 'block';
+      document.getElementById('pingChip').style.display   = 'block';
+      document.getElementById('modeBadge').innerHTML =
+        `<span class="badge badge-live" style="font-size:.68rem">${mode}</span>`;
+      startSending();
+    };
+
+    ws.onmessage = (evt) => {
+      isProcessing = false; // Libera o envio do próximo frame
+      if (!(evt.data instanceof ArrayBuffer)) {
+        setTimeout(sendFrame, 10);
+        return;
+      }
+      const buf = new Uint8Array(evt.data);
+      // Protocolo: [4 bytes JSON len][JSON][JPEG]
+      const jsonLen = buf[0] | (buf[1]<<8) | (buf[2]<<16) | (buf[3]<<24);
+      const jsonBytes = buf.slice(4, 4 + jsonLen);
+      const jpgBytes  = buf.slice(4 + jsonLen);
+
+      const metrics = JSON.parse(new TextDecoder().decode(jsonBytes));
+      updateUI(metrics, jpgBytes);
+      
+      // Dispara próximo frame instantaneamente
+      setTimeout(sendFrame, 5); 
+    };
+
+    ws.onerror = () => {
+      log('❌ Erro WebSocket. Verifique IP/porta e se o servidor está rodando.', 'danger');
+    };
+
+    ws.onclose = () => {
+      if (connected) log('⛔ WebSocket desconectado.', 'warn');
+      connected = false;
+    };
+  }
+
+  // ── Captura e envia frames ──
+  let isProcessing = false;
+  let isSendingActive = false;
+
+  function sendFrame() {
+    if (!isSendingActive || !connected || !ws || ws.readyState !== WebSocket.OPEN) return;
+    const canvas = document.getElementById('captureCanvas');
+    const vid    = document.getElementById('localVideo');
+    if (vid.videoWidth === 0) {
+      setTimeout(sendFrame, 10);
+      return;
+    }
+    
+    isProcessing = true;
+
+    // Otimização massiva de FPS: Redimensionar para max 640px antes de enviar
+    const maxW = 640;
+    let w = vid.videoWidth;
+    let h = vid.videoHeight;
+    if (w > maxW) {
+      h = Math.floor(h * (maxW / w));
+      w = maxW;
+    }
+
+    canvas.width  = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(vid, 0, 0, w, h);
+    
+    // Qualidade 0.6 é o suficiente para o backend reconhecer o rosto perfeitamente
+    canvas.toBlob(blob => {
+      if (!blob) { isProcessing = false; setTimeout(sendFrame, 10); return; }
+      blob.arrayBuffer().then(buf => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(buf);
+          // O próximo frame será disparado dentro do ws.onmessage para evitar engarrafamento
+        } else {
+          isProcessing = false;
+        }
+      }).catch(() => { isProcessing = false; setTimeout(sendFrame, 10); });
+    }, 'image/jpeg', 0.6);
+  }
+
+  function startSending() {
+    isSendingActive = true;
+    sendFrame();
+  }
+
+  // ── Atualiza UI com resposta do servidor ──
+  function updateUI(m, jpgBytes) {
+    // Exibe frame processado
+    const blob = new Blob([jpgBytes], { type: 'image/jpeg' });
+    const url  = URL.createObjectURL(blob);
+    const img  = document.getElementById('processedImg');
+    const oldUrl = img.src;
+    img.onload = () => { if (oldUrl && oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl); };
+    img.src = url;
+    img.style.display = 'block';
+    document.getElementById('procOffline').style.display = 'none';
+
+    // Similaridade
+    const sim = m.similarity;
+    let barColor = 'var(--success)', simColor = '#00e676';
+    if (sim >= 0.45) { barColor = 'var(--warn)';    simColor = '#ffb300'; }
+    if (sim >= 0.60) { barColor = 'var(--danger)';  simColor = '#ff3b6b'; }
+
+    document.getElementById('simVal').textContent = sim.toFixed(4);
+    document.getElementById('simVal').style.color = simColor;
+    document.getElementById('simBar').style.width      = Math.min(sim*100,100) + '%';
+    document.getElementById('simBar').style.background = barColor;
+
+    const v045 = document.getElementById('v045');
+    const v060 = document.getElementById('v060');
+    v045.textContent = m.match_045 ? 'PASS ✓' : 'FAIL ✗';
+    v045.className   = 'verdict ' + (m.match_045 ? 'vp' : 'vf');
+    v060.textContent = m.match_060 ? 'PASS ✓' : 'FAIL ✗';
+    v060.className   = 'verdict ' + (m.match_060 ? 'vp' : 'vf');
+
+    // Estatísticas
+    const asr = m.asr;
+    document.getElementById('asrVal').textContent     = asr.toFixed(1) + '%';
+    document.getElementById('asrVal').style.color     = asr > 70 ? 'var(--danger)' : asr > 40 ? 'var(--warn)' : 'var(--success)';
+    document.getElementById('statFrames').textContent = m.total_frames;
+    document.getElementById('statMatch').textContent  = m.match_count;
+    document.getElementById('statLatency').textContent= m.latency_ms + 'ms';
+    document.getElementById('statFace').textContent   = m.face_detected ? '✅' : '❌';
+    document.getElementById('statTime').textContent   = m.elapsed_s + 's';
+    document.getElementById('pingChip').textContent   = m.latency_ms + ' ms';
+
+    // FPS de retorno
+    fpsFrames++;
+    const now = Date.now();
+    if (now - fpsTime >= 1000) {
+      fpsDisplay = fpsFrames;
+      fpsFrames = 0;
+      fpsTime = now;
+      document.getElementById('statFps').textContent = fpsDisplay.toFixed(1);
+    }
+
+    // Log periódico
+    if (m.total_frames % 50 === 0) {
+      log(`frame=${m.total_frames} sim=${sim.toFixed(4)} ASR=${asr.toFixed(1)}% lat=${m.latency_ms}ms`,
+          m.match_045 ? 'danger' : 'success');
+    }
+  }
+
+  function toggleMode() {
+    mode = mode === "ATAQUE" ? "PASSTHROUGH" : "ATAQUE";
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "mode", value: mode }));
+    }
+    document.getElementById('btnMode').textContent = `🔄 ${mode}`;
+    document.getElementById('modeBadge').innerHTML =
+      `<span class="badge badge-live" style="font-size:.68rem">${mode}</span>`;
+    log(`Modo: ${mode}`, 'warn');
+  }
+
+  function disconnect() {
+    connected = false;
+    clearInterval(sendInterval);
+    if (ws) { ws.close(); ws = null; }
+    if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+    const img = document.getElementById('processedImg');
+    img.src = ''; img.style.display = 'none';
+    document.getElementById('procOffline').style.display = 'flex';
+    document.getElementById('btnConnect').style.display  = 'block';
+    document.getElementById('btnStop').style.display     = 'none';
+    document.getElementById('btnMode').style.display     = 'none';
+    document.getElementById('pingChip').style.display    = 'none';
+    log('⛔ Desconectado.', 'warn');
+  }
+
+  // Ao carregar: pede permissão de câmera para enumerar dispositivos
+  window.onload = async () => {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      s.getTracks().forEach(t => t.stop());
+      await enumCameras();
+    } catch(e) {
+      log('Permissão de câmera necessária para enumerar dispositivos.', 'warn');
+    }
+  };
+</script>
+</body>
+</html>

@@ -24,3 +24,6 @@ services:
 
     tty: true
     stdin_open: true
+
+    devices:
+      - /dev/video0:/dev/video0
