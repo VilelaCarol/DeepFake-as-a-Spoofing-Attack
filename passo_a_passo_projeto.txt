@@ -72,16 +72,18 @@ ETAPA 4: AVALIAÇÃO EM DIMENSÃO TEMPORAL (DATASET YTF - VÍDEOS)
    0.45), provando que o vetor de vídeo multidimensional é significativamente mais resiliente.
 
 --------------------------------------------------------------------------------
-ETAPA 5: APLICAÇÃO DE VIDA REAL - ATAQUE AO VIVO (A "POC")
+ETAPA 5: APLICAÇÃO DE VIDA REAL - ATAQUE AO VIVO (PIPELINE REAL-TIME)
 --------------------------------------------------------------------------------
-1. Arquitetura Interativa: Foi escrito o Notebook `pipeline_deepfake.ipynb` 
-   que dita uma prova de conceito de ataque contra um sistema ao vivo.
-2. Injeção de Câmera (v4l2loopback): Utilizamos ferramentas do kernel Linux e do 
-   FFMPEG para fingir um dispositivo de Webcam para o SO inteiro, lendo um vídeo  
-   fabricado em loop e transmitindo via `/dev/video7`.
+1. Arquitetura Interativa WebSockets: Foi desenvolvido um cliente web (`realtime_client_attack.html`) 
+   que captura a webcam real e transmite os frames compactados em tempo real via WebSockets 
+   para um servidor assíncrono (`realtime_api_server.py`).
+2. Injeção de Câmera (v4l2loopback): O backend processa o face swap na GPU via TensorRT 
+   e repassa o frame fraudado para o script `local_virtual_cam.py`, que usa a biblioteca 
+   `pyvirtualcam` para injetar o vídeo diretamente no `/dev/video2`.
 3. Resultado prático: Provou-se que um invasor comum pode logar em serviços como 
-   Zoom, Google Meet ou sistemas de cadastro (que checam câmera estática) transmitindo 
-   um falso rosto trocado e passando despercebido visualmente.
+   Zoom ou Google Meet transmitindo um rosto falso trocado em tempo real (FPS > 28) 
+   apenas com ferramentas open-source. O gargalo da rede gerou 0% de ASR biométrico,
+   atuando como um filtro de defesa natural, mas a injeção visual foi 100% viável.
 
 --------------------------------------------------------------------------------
 ETAPA 6: MATURAÇÃO DE DADOS E FORMATAÇÃO ACADÊMICA

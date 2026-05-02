@@ -101,50 +101,26 @@ Esses arquivos fazem a mesmíssima coisa, só que aplicados nas fotos soltas da 
 
 ---
 
-## Resultados
+## Resultados Principais (Validados no Artigo)
 
-### 1. Baseline — LFW (sem manipulação)
+Os experimentos foram avaliados em 3 regimes distintos de complexidade. O threshold de aceitação adotado como referência de segurança média foi $\tau = 0.45$.
 
-| Métrica | Valor |
-|---------|-------|
-| Pares avaliados | 6.000 (3.000 genuínos + 3.000 impostores) |
-| Acurácia | **95.97%** (threshold ótimo = 0.238) |
-| AUC | **0.9660** |
-| EER | **6.47%** |
-| FAR (τ=0.45) | 0.00% |
-| FRR (τ=0.45) | 12.40% |
-| FAR (τ=0.60) | 0.00% |
-| FRR (τ=0.60) | 38.13% |
+### 1. Imagens Estáticas (LFW)
+- **Baseline**: 6.000 pares (Acurácia = 95.97%, EER = 6.60%)
+- **Tamanho do Ataque**: 3.000 face swaps gerados
+- **Attack Success Rate (ASR)**: **92.8%** 
+- **Score Shift ($\Delta s$)**: **0.6937** (Deslocamento estatístico massivo para a região de aceitação)
 
-### 2. Ataque Deepfake — Dataset Pessoal
+### 2. Vídeos Não-Restritos (YouTube Faces - YTF)
+- **Baseline**: 5.000 pares de vídeo (Acurácia = 76.74%, EER = 23.56%)
+- **Tamanho do Ataque**: 999 vídeos manipulados (agregando 5 frames/vídeo)
+- **Attack Success Rate (ASR)**: **34.3%**
+- **Score Shift ($\Delta s$)**: **0.1353** (Transferência de identidade mitigada pela compressão temporal e variação de pose)
 
-| Swap | Alvo | Similaridade | τ=0.45 |
-|------|------|:------------:|--------|
-| Paulo → João | Paulo | Alto | 🚨 Enganou |
-| Lucas → Carol | Lucas | Alto | 🚨 Enganou |
-| Carol → Paulo | Carol | Alto | 🚨 Enganou |
-
-### 3. Ataque Deepfake — LFW (30 swaps)
-
-| Métrica | τ = 0.45 | τ = 0.60 |
-|---------|:--------:|:--------:|
-| **Attack Success Rate (ASR)** | **93.3%** (28/30) | **90.0%** (27/30) |
-| Swaps barrados | 6.7% (2/30) | 10.0% (3/30) |
-
-| Estatística | Valor |
-|-------------|-------|
-| Similaridade Média | 0.6846 |
-| Similaridade Mediana | 0.7565 |
-| Mín | -0.1167 |
-| Máx | 0.8232 |
-
-### Interpretação
-
-> O sistema biométrico baseado em AdaFace IR-50 apresenta **alta vulnerabilidade**
-> a ataques de face swap (deepfakes): **93.3%** dos swaps enganaram a IA com τ=0.45.
-> Os deepfakes gerados pelo FaceFusion (inswapper_128) produzem similaridades na
-> faixa de 0.60–0.82, equivalente à faixa de **pares genuínos** do baseline.
-> Isso demonstra a necessidade de mecanismos complementares como **Liveness Detection**.
+### 3. Injeção em Tempo Real (Câmera Virtual v4l2loopback)
+- **Teste de Carga**: 2654 frames processados (Duração de ~109.8 segundos)
+- **Performance do Pipeline**: **28.6 FPS** (Viabilidade operacional confirmada via GPU)
+- **Viabilidade da Injeção**: Demonstrado com sucesso o *bypass* do hardware físico através da injeção contínua do vídeo manipulado (*face swap* gerado pelo FaceFusion) diretamente no dispositivo de câmera virtual. Isso prova o potencial técnico para ataques de injeção direta em softwares de videoconferência.
 
 ---
 
@@ -152,16 +128,14 @@ Esses arquivos fazem a mesmíssima coisa, só que aplicados nas fotos soltas da 
 
 | Arquivo | Descrição |
 |---------|-----------|
+| `app/results/paper_plots/summary_metrics.csv` | Tabela consolidada com FAR, FRR, ASR e EER de todos os cenários |
 | `app/results/lfw_scores.csv` | Scores cosseno dos 6.000 pares do baseline LFW |
-| `app/results/lfw_swap_attack_results.csv` | Detalhes de cada swap no LFW (30 ataques) |
-| `app/results/score_hist_baseline.png` | Histograma: genuínos vs. impostores (baseline) |
-| `app/results/roc_curve_lfw.png` | Curva ROC com AUC e EER |
-| `app/results/lfw_swap_attack_histogram.png` | Distribuição dos scores dos deepfakes |
-| `app/results/lfw_baseline_vs_attack.png` | Comparação baseline vs. ataque deepfake |
-| `app/results/experimental_config.txt` | Configuração experimental completa |
-| `app/results/baseline_conclusion.txt` | Conclusão do baseline |
-| `app/results/lfw_swap_attack_conclusion.txt` | Conclusão do ataque deepfake |
-| `data/dataset_pessoal/resultados_dataset_pessoal.csv` | Comparação cruzada do dataset pessoal |
+| `app/results/lfw_swap_attack_results.csv` | Scores detalhados de cada um dos 3.000 swaps LFW |
+| `app/results/ytf_scores.csv` | Scores cosseno dos 5.000 pares de vídeo do YTF |
+| `app/results/ytf_swap_attack_results.csv` | Scores detalhados de cada um dos 999 vídeos manipulados |
+| `app/results/realtime_attack_log.csv` | Log completo da sessão em tempo real contendo framerate e latência frame a frame |
+| `app/results/paper_plots/` | Diretório contendo todos os gráficos do artigo (ROC, DET, Boxplots, Histogramas) |
+| `data/dataset_pessoal/resultados_dataset_pessoal.csv` | Teste manual e pareamento da equipe local |
 
 ---
 
@@ -170,12 +144,13 @@ Esses arquivos fazem a mesmíssima coisa, só que aplicados nas fotos soltas da 
 | Componente | Tecnologia | Versão |
 |-----------|-----------|--------|
 | Container | Docker + NVIDIA CUDA | 12.2.2 + cuDNN 8 |
-| Linguagem | Python | 3.10 |
-| Deep Learning | PyTorch | 2.11+ |
-| Detecção Facial | YOLOv8n-face (Ultralytics) | 8.4+ |
-| Embedding Facial | AdaFace IR-50 (WebFace4M) | — |
+| Linguagem | Python | 3.13.7 |
+| Deep Learning | PyTorch | 2.6.0+cu124 |
+| Visão Computacional | OpenCV, Ultralytics, ONNXRuntime-GPU | — |
+| Embedding Facial | AdaFace IR-50 (CVLFace) | — |
 | Face Swap | FaceFusion (inswapper_128) | 3.x |
-| API | FastAPI + Uvicorn | — |
+| Protocolo Tempo-Real | WebSockets (`websockets` + `asyncio`) | — |
+| Injeção / Câmera Virtual | `v4l2loopback` via `pyvirtualcam` | — |
 
 ---
 
