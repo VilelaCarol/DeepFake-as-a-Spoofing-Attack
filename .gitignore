@@ -51,13 +51,15 @@ results/
 .caches/
 
 # ========================
-# Exceções — pose_analysis (subir pro GitHub)
+# Exceções — app/results/ inteiro (subir pro GitHub)
 # ========================
 !app/results/
-!app/results/pose_analysis/
-!app/results/pose_analysis/**
-!app/results/pose_analysis/**/*.jpg
-!app/results/pose_analysis/**/*.jpeg
-!app/results/pose_analysis/*.csv
-!app/results/pose_analysis/*.txt
-!app/results/pose_analysis/*.png
+!app/results/**
+!app/results/**/*
+!app/results/**/*.jpg
+!app/results/**/*.jpeg
+!app/results/**/*.png
+!app/results/**/*.csv
+!app/results/**/*.txt
+!app/results/**/*.mp4
+
