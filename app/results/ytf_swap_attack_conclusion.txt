@@ -19,7 +19,7 @@ Para cada ataque:
 
   Estatísticas de Similaridade:
     Média:   0.3935
-    Mediana: 0.3939
+    Mediana: 0.3941
     Desvio:  0.1391
 
 INTERPRETAÇÃO:

@@ -14,20 +14,20 @@ Impostores       : 2500
 Pares ignorados  : 0
 
 OS               : Linux 6.16.8-1-MANJARO
-Python           : 3.10.12
-PyTorch          : 2.11.0+cu130
+Python           : 3.13.7
+PyTorch          : 2.6.0+cu124
 
 =======================================================
 RESULTADOS
 =======================================================
-Melhor threshold : 0.3620
-Acurácia         : 76.74%
-AUC              : 0.8418
-EER              : 23.56%
-Tempo total (s)  : 186.0
+Melhor threshold : 0.2590
+Acurácia         : 76.50%
+AUC              : 0.8388
+EER              : 23.60%
+Tempo total (s)  : 255.9
 
-Média Genuínos   : 0.4785
-Média Impostores : 0.2582
+Média Genuínos   : 0.3468
+Média Impostores : 0.1856
 
-τ=0.45: FAR=8.76%, FRR=43.32%
-τ=0.60: FAR=0.64%, FRR=75.40%
+τ=0.45: FAR=0.44%, FRR=78.52%
+τ=0.60: FAR=0.00%, FRR=96.92%

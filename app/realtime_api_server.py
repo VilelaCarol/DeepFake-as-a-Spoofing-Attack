@@ -27,6 +27,12 @@ import sys
 
 # ── Fix cuDNN: usa as libs bundled do pip (nvidia-cudnn-cu12) ─────────────────
 # O sistema tem /usr/lib/libcudnn_cnn.so.9 com símbolo quebrado.
+# Apenas setar LD_LIBRARY_PATH via os.environ NÃO funciona porque o dlopen
+# do processo atual já foi inicializado. Precisamos PRÉ-CARREGAR as libs
+# corretas via ctypes ANTES do ONNX Runtime tentar carregá-las.
+import ctypes
+import glob as _glob
+
 _CUDNN_LIB_PATH = None
 for _sp in sys.path:
     _candidate = os.path.join(_sp, "nvidia", "cudnn", "lib")
@@ -38,9 +44,18 @@ if _CUDNN_LIB_PATH is None:
         "/home/victor/.local/lib/python3.13/site-packages/nvidia/cudnn/lib"
     )
 if os.path.isdir(_CUDNN_LIB_PATH):
+    # Método 1: Setar LD_LIBRARY_PATH (afeta subprocessos)
     _old = os.environ.get("LD_LIBRARY_PATH", "")
     os.environ["LD_LIBRARY_PATH"] = _CUDNN_LIB_PATH + (":" + _old if _old else "")
-    print(f"🔧 cuDNN fix: {_CUDNN_LIB_PATH}")
+    # Método 2: Pré-carregar TODAS as libs cuDNN na memória (afeta dlopen do processo atual)
+    _preloaded = 0
+    for _lib in sorted(_glob.glob(os.path.join(_CUDNN_LIB_PATH, "libcudnn*.so.*"))):
+        try:
+            ctypes.CDLL(_lib, mode=ctypes.RTLD_GLOBAL)
+            _preloaded += 1
+        except Exception:
+            pass
+    print(f"🔧 cuDNN fix: {_preloaded} libs preloaded from {_CUDNN_LIB_PATH}")
 
 import json
 import time
@@ -48,6 +63,8 @@ import struct
 import asyncio
 import argparse
 import csv
+import threading
+import queue
 
 import cv2
 import numpy as np
@@ -87,11 +104,62 @@ _neural_swapper = None
 _attacker_img = None
 _ref_embedding = None
 _yolo_detector = None
+_source_image_path = None
+
+
+# ==============================================================================
+# OfflineFrameSaver — salva frames processados para cálculo offline do ASR
+# ==============================================================================
+class OfflineFrameSaver(threading.Thread):
+    """
+    Thread separada que salva frames processados em disco para cálculo
+    offline do ASR. Não impacta o FPS do pipeline principal.
+    """
+
+    def __init__(self, output_dir: str, save_interval: int = 5, jpeg_quality: int = 95):
+        super().__init__(daemon=True)
+        self.output_dir = output_dir
+        self.save_interval = save_interval
+        self.jpeg_quality = jpeg_quality
+        self.q = queue.Queue(maxsize=100)
+        self._stop_event = threading.Event()
+        self._saved_count = 0
+        os.makedirs(output_dir, exist_ok=True)
+        print(f"💾 OfflineFrameSaver: salvando 1 a cada {save_interval} frames em {output_dir}")
+
+    def enqueue(self, frame_id: int, frame_bgr: np.ndarray, mode: str):
+        """Enfileira um frame para salvar. Se a fila estiver cheia, descarta."""
+        if frame_id % self.save_interval != 0:
+            return
+        if not self.q.full():
+            self.q.put((frame_id, frame_bgr.copy(), mode))
+
+    def run(self):
+        while not self._stop_event.is_set():
+            try:
+                frame_id, frame, mode = self.q.get(timeout=1.0)
+            except queue.Empty:
+                continue
+            fname = f"frame_{frame_id:06d}_{mode}.jpg"
+            path = os.path.join(self.output_dir, fname)
+            cv2.imwrite(path, frame, [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality])
+            self._saved_count += 1
+
+    def stop(self):
+        self._stop_event.set()
+        self.join(timeout=5)
+        print(f"💾 OfflineFrameSaver encerrado — {self._saved_count} frames salvos")
+
+    @property
+    def saved_count(self):
+        return self._saved_count
 
 
 def init_models(source_image: str):
     """Inicializa todos os modelos na GPU."""
-    global _verifier, _neural_swapper, _attacker_img, _ref_embedding
+    global _verifier, _neural_swapper, _attacker_img, _ref_embedding, _source_image_path
+    
+    _source_image_path = source_image
 
     print("=" * 60)
     print("🚀 REAL-TIME DEEPFAKE API SERVER")
@@ -161,28 +229,16 @@ def draw_hud(frame: np.ndarray, sim: float, match: bool,
     return frame.copy()
 
 
-_last_bbox = None
-_bbox_frame_counter = 0
-
 def process_frame(frame_bgr: np.ndarray, mode: str = "ATAQUE"):
     """
-    Pipeline completo: detecta face → swap → verificação biométrica.
+    Pipeline completo: face swap via FaceFusion (detecção interna).
+    A detecção YOLO separada foi removida — o FaceFusion já detecta
+    a face internamente dentro do swap(), evitando inferência dupla.
     Retorna: (frame_processado, métricas_dict)
     """
-    global _last_bbox, _bbox_frame_counter
-    
-    # YOLO Tracker Otimizado: Só roda a detecção a cada 15 frames para maximizar a performance
-    if _bbox_frame_counter % 15 == 0 or _last_bbox is None:
-        bbox = detect_face(frame_bgr)
-        if bbox is not None:
-            _last_bbox = bbox
-    else:
-        bbox = _last_bbox
-    _bbox_frame_counter += 1
-
-    # Face Swap
-    if mode == "ATAQUE" and bbox is not None:
-        processed = _neural_swapper.swap(frame_bgr, bbox)
+    # Face Swap — FaceFusion detecta a face internamente
+    if mode == "ATAQUE":
+        processed = _neural_swapper.swap(frame_bgr, None)
     else:
         processed = frame_bgr.copy()
 
@@ -194,9 +250,9 @@ def process_frame(frame_bgr: np.ndarray, mode: str = "ATAQUE"):
         "similarity": round(sim, 6),
         "match_045": False,
         "match_060": False,
-        "face_detected": bbox is not None,
+        "face_detected": True,  # FaceFusion detecta internamente
         "mode": mode,
-        "bbox": [int(x) for x in bbox] if bbox else None,
+        "bbox": None,
     }
 
     return processed, metrics
@@ -226,7 +282,26 @@ async def handle_client(websocket):
     csv_file = open(csv_path, "w", newline="")
     csv_writer = csv.writer(csv_file)
     csv_writer.writerow(["frame", "mode", "similarity", "match_045", "match_060",
-                         "elapsed_s", "fps"])
+                         "elapsed_s", "fps", "frame_saved"])
+
+    # Frame saver para cálculo offline do ASR
+    frames_dir = os.path.join(RESULTS_DIR, "realtime_frames")
+    # Limpa frames da sessão anterior para evitar misturar dados
+    import shutil
+    if os.path.exists(frames_dir):
+        shutil.rmtree(frames_dir)
+    os.makedirs(frames_dir, exist_ok=True)
+    
+    # Salva metadado da sessão (para o compute_asr_offline saber qual source-image usar)
+    global _source_image_path
+    with open(os.path.join(frames_dir, "_session_info.txt"), "w") as _f:
+        # Se não houver, usa um fallback, mas init_models já deve ter populado isso
+        path_to_save = os.path.abspath(_source_image_path) if _source_image_path else "desconhecido"
+        _f.write(f"source_image={path_to_save}\n")
+        _f.write(f"timestamp={time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        
+    frame_saver = OfflineFrameSaver(frames_dir, save_interval=5, jpeg_quality=95)
+    frame_saver.start()
 
     try:
         async for message in websocket:
@@ -280,10 +355,9 @@ async def handle_client(websocket):
             latency_ms = (time.time() - t_start) * 1000
             asr = 100.0 * match_count / frame_count if frame_count > 0 else 0.0
 
-            # Desenha HUD no frame
-            bbox = tuple(metrics["bbox"]) if metrics["bbox"] else None
+            # Desenha HUD no frame (bbox não disponível — detecção é interna ao FaceFusion)
             output = draw_hud(processed, metrics["similarity"],
-                              metrics["match_045"], fps_val, bbox, mode)
+                              metrics["match_045"], fps_val, None, mode)
 
             # Codifica frame processado como JPEG
             _, jpg_buf = cv2.imencode(".jpg", output, [cv2.IMWRITE_JPEG_QUALITY, 80])
@@ -306,11 +380,15 @@ async def handle_client(websocket):
             response = json_len + json_bytes + jpg_bytes
             await websocket.send(response)
 
+            # Salva frame processado para cálculo offline do ASR
+            frame_saver.enqueue(frame_count, processed, mode)
+            was_saved = (frame_count % frame_saver.save_interval == 0)
+
             # CSV log
             csv_writer.writerow([
                 frame_count, mode, f"{metrics['similarity']:.6f}",
                 int(metrics["match_045"]), int(metrics["match_060"]),
-                f"{elapsed:.2f}", f"{fps_val:.1f}"
+                f"{elapsed:.2f}", f"{fps_val:.1f}", int(was_saved)
             ])
 
             # Log periódico
@@ -323,6 +401,7 @@ async def handle_client(websocket):
         if "closed" not in str(e).lower():
             print(f"⚠ Erro: {e}")
     finally:
+        frame_saver.stop()
         csv_file.close()
         elapsed = time.time() - t0
         asr = 100.0 * match_count / frame_count if frame_count > 0 else 0.0
@@ -334,8 +413,11 @@ async def handle_client(websocket):
         print(f"   Frames processados: {frame_count}")
         print(f"   FPS médio        : {frame_count / elapsed:.1f}" if elapsed > 0 else "   FPS médio        : N/A")
         print(f"   Frames aceitos   : {match_count}")
-        print(f"   ASR (tau=0.45)   : {asr:.2f}%")
+        print(f"   ASR (tau=0.45)   : {asr:.2f}% (online — sem verificação biométrica)")
+        print(f"   Frames salvos    : {frame_saver.saved_count}")
         print(f"   Log salvo em     : {csv_path}")
+        print(f"   Frames salvos em : {frames_dir}")
+        print(f"   ⚠ Execute compute_asr_offline.py para calcular o ASR real!")
         print(f"{'=' * 60}\n")
 
 
