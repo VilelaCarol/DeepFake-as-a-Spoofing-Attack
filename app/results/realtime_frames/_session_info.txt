@@ -1,0 +1,2 @@
+source_image=/mnt/BKP/Carol_Artigo/deepfaketeste/data/dataset_pessoal/originais/justin.jpg
+timestamp=2026-05-04 13:46:39

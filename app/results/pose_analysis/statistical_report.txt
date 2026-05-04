@@ -1,0 +1,20 @@
+RELATÓRIO ESTATÍSTICO DA HIPÓTESE
+==================================================
+
+🔹 Hipótese: O(a) Desvio Horizontal (Sair do centro para os lados) afeta a Similaridade Biométrica?
+   - Correlação de Pearson: NEGATIVO (r = -0.5336). Isso significa que quanto maior o Desvio Horizontal (Sair do centro para os lados), MENOR é a similaridade.
+   - Valor-p: 1.3075e-20
+   - Chance da Hipótese estar certa: Muito Alta
+   - Conclusão: O efeito é EXTREMAMENTE SIGNIFICATIVO (Certeza estatística quase total >99.9%).
+
+🔹 Hipótese: O(a) Desvio Vertical (Mover o rosto para cima/baixo) afeta a Similaridade Biométrica?
+   - Correlação de Pearson: NEGATIVO (r = -0.2920). Isso significa que quanto maior o Desvio Vertical (Mover o rosto para cima/baixo), MENOR é a similaridade.
+   - Valor-p: 1.5899e-06
+   - Chance da Hipótese estar certa: Muito Alta
+   - Conclusão: O efeito é EXTREMAMENTE SIGNIFICATIVO (Certeza estatística quase total >99.9%).
+
+🔹 Hipótese: O(a) Tamanho do Rosto (Distância da câmera) afeta a Similaridade Biométrica?
+   - Correlação de Pearson: POSITIVO (r = 0.7865). Isso significa que quanto maior o Tamanho do Rosto (Distância da câmera), MAIOR é a similaridade.
+   - Valor-p: 3.9586e-56
+   - Chance da Hipótese estar certa: Muito Alta
+   - Conclusão: O efeito é EXTREMAMENTE SIGNIFICATIVO (Certeza estatística quase total >99.9%).

@@ -49,3 +49,15 @@ results/
 *.jpeg
 *.jpg
 .caches/
+
+# ========================
+# Exceções — pose_analysis (subir pro GitHub)
+# ========================
+!app/results/
+!app/results/pose_analysis/
+!app/results/pose_analysis/**
+!app/results/pose_analysis/**/*.jpg
+!app/results/pose_analysis/**/*.jpeg
+!app/results/pose_analysis/*.csv
+!app/results/pose_analysis/*.txt
+!app/results/pose_analysis/*.png
